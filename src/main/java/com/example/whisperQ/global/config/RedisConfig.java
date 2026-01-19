@@ -1,0 +1,29 @@
+package com.example.whisperQ.global.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+@Configuration
+public class RedisConfig {
+
+    @Bean
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, Object> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+
+        // Keys are strings
+        template.setKeySerializer(new StringRedisSerializer());
+        
+        // Values (Strings are sufficient for current ZSet/Set usage)
+        template.setValueSerializer(new StringRedisSerializer());
+        
+        // Hash Keys and Values
+        template.setHashKeySerializer(new StringRedisSerializer());
+        template.setHashValueSerializer(new StringRedisSerializer());
+
+        return template;
+    }
+}

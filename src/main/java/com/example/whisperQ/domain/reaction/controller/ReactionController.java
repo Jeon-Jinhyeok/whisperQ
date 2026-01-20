@@ -19,14 +19,15 @@ public class ReactionController {
 
     private final ReactionService reactionService; // Redis 로직 담당
 
+
     /**
      * POST /api/reactions
      * HTTP 리액션 전송 API. WebSocket 연결 백업용도.
      */
     @PostMapping("/api/reactions")
-    public void sendReaction(@RequestBody ReactionMessage message) {
-        log.info("HTTP Reaction received: session={}, type={}", message.sessionId(), message.type());
-        reactionService.saveReaction(message);
+    public void sendReaction(@RequestBody ReactionMessage message, java.security.Principal principal) {
+        log.info("HTTP Reaction received: session={}, type={}, user={}", message.sessionId(), message.type(), (principal != null ? principal.getName() : "anonymous"));
+        reactionService.saveReaction(message, (principal != null ? principal.getName() : null));
     }
     
     /**
@@ -34,8 +35,8 @@ public class ReactionController {
      * 경로: /app/reactions
      */
     @MessageMapping("/reactions")
-    public void receiveReaction(@Payload ReactionMessage message) {
-        log.info("WebSocket Reaction received: session={}, type={}", message.sessionId(), message.type());
-        reactionService.saveReaction(message);
+    public void receiveReaction(@Payload ReactionMessage message, java.security.Principal principal) {
+        log.info("WebSocket Reaction received: session={}, type={}, user={}", message.sessionId(), message.type(), (principal != null ? principal.getName() : "anonymous"));
+        reactionService.saveReaction(message, (principal != null ? principal.getName() : null));
     }
 }

@@ -4,5 +4,6 @@ import java.util.Map;
 
 public record ReactionUpdateEvent(
     String sessionId,
-    Map<String, Long> reactionCounts
+    Map<String, Long> reactionCounts,
+    int urgentUserCount
 ) {}

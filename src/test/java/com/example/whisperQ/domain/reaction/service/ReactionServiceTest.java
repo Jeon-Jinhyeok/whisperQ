@@ -11,13 +11,22 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import com.example.whisperQ.domain.reaction.dto.ReactionMessage;
 import com.example.whisperQ.domain.reaction.dto.ReactionUpdateEvent;
 import com.example.whisperQ.domain.reaction.entity.ReactionType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import com.example.whisperQ.domain.session.repository.SessionRepository;
+import com.example.whisperQ.domain.reaction.repository.ReactionLogRepository;
+import com.example.whisperQ.domain.session.entity.Session;
+
+import static org.mockito.BDDMockito.given;
+import java.util.Optional;
 
 @SpringBootTest
+@Import(com.example.whisperQ.global.config.EmbeddedRedisConfig.class)
 class ReactionServiceTest {
 
     @Autowired
@@ -25,6 +34,12 @@ class ReactionServiceTest {
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
+
+    @MockitoBean
+    private SessionRepository sessionRepository;
+
+    @MockitoBean
+    private ReactionLogRepository reactionLogRepository;
 
     @BeforeEach
     @AfterEach
@@ -44,12 +59,14 @@ class ReactionServiceTest {
     @DisplayName("리액션 저장 시 Redis ZSet에 데이터가 저장되고 Active Session에 추가되어야 한다")
     void saveReaction_shouldAddDataToRedis() {
         // Given
-        String sessionId = "test_session_1";
+        String sessionId = "1";
+        given(sessionRepository.findBySessionCode("1")).willReturn(Optional.of(Session.builder().id(1L).build()));
+        
         String type = ReactionType.CONFUSED.name(); // "CONFUSED"
         ReactionMessage message = new ReactionMessage(sessionId, type);
 
         // When
-        reactionService.saveReaction(message);
+        reactionService.saveReaction(message, null);
 
         // Then
         // 1. ZSet 확인 (Window)
@@ -70,7 +87,7 @@ class ReactionServiceTest {
     @DisplayName("Intensity 계산 시 30초 이내의 데이터만 집계되어야 한다")
     void calculateIntensity_shouldCountOnlyRecentReactions() {
         // Given
-        String sessionId = "test_session_2";
+        String sessionId = "2";
         String type = ReactionType.CONFUSED.name(); 
         String windowKey = "session:" + sessionId + ":reaction:" + type + ":window";
 
@@ -96,5 +113,31 @@ class ReactionServiceTest {
         // Redis에서 실제로 삭제되었는지 확인
         Long zCard = redisTemplate.opsForZSet().zCard(windowKey);
         assertThat(zCard).isEqualTo(2L);
+    }
+    @Test
+    @DisplayName("사용자가 5초 내에 5번 이상 반응하면 급박한 사용자로 집계되어야 한다")
+    void checkUserUrgency_shouldMarkUserAsUrgentWhenRateExceedsLimit() {
+        // Given
+        String sessionId = "3";
+        given(sessionRepository.findBySessionCode("3")).willReturn(Optional.of(Session.builder().id(3L).build()));
+        
+        String userId = "urgent_user_1";
+        String type = ReactionType.MORE.name();
+        ReactionMessage message = new ReactionMessage(sessionId, type);
+
+        // When: 5번 반응 (5초 이내로 가정 - 테스트 실행 속도가 빠르므로 보통 성립)
+        for (int i = 0; i < 5; i++) {
+            reactionService.saveReaction(message, userId);
+        }
+
+        // Then
+        ReactionUpdateEvent event = reactionService.calculateIntensity(sessionId);
+        
+        // 급박한 사용자 수가 1명이어야 함
+        assertThat(event.urgentUserCount()).isEqualTo(1);
+        
+        // Redis Set 확인
+        Boolean isMember = redisTemplate.opsForSet().isMember("session:" + sessionId + ":urgent_users", userId);
+        assertThat(isMember).isTrue();
     }
 }

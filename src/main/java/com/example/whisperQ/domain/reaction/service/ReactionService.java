@@ -31,7 +31,7 @@ public class ReactionService {
     private final SessionRepository sessionRepository;
 
     // Window size (30 seconds)
-    private static final long TIME_WINDOW_MS = 30000;
+    private static final long TIME_WINDOW_MS = 20000;
 
     /**
      * Save a reaction to Redis using ZSET.
